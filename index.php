@@ -1,52 +1,70 @@
 <?php
 
-use Aranea\Fetcher as Fetcher;
+namespace Aranea;
 
 require 'vendor/autoload.php';
 
-$dbh = new \PDO('sqlite::memory:');
-
-$dbh->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-
-$sql = file_get_contents('db/schema.sql');
-
-$dbh->exec($sql);
+$help = <<<EOF
+Usage: php index.php -u <url>
+EOF;
 
 try {
-	$url = 'https://alias.io';
+	$opts = getopt('u:hHri', array(
+		'url:',
+		'help',
+		'span-hosts',
+		'recursive',
+		'ignore-nofollow'
+		));
 
-	Fetcher::fetchRecursive($url, function(&$response) use($dbh, $url) {
+	$url = isset($opts['url']) ? $opts['url'] : ( isset($opts['u']) ? $opts['u'] : '' );
+
+	Fetcher::$spanHosts      = isset($opts['span-hosts'])      || isset($opts['H']);
+	Fetcher::$recursive      = isset($opts['recursive'])       || isset($opts['r']);
+	Fetcher::$ignoreNoFollow = isset($opts['ignore-nofollow']) || isset($opts['i']);
+
+	if ( isset($opts['help']) || isset($opts['h']) || !$url ) {
+		throw new Exception($help);
+	}
+
+	$url = Fetcher::parseUrl($url);
+
+	if ( empty($url['scheme']) ) {
+		throw new Exception('Invalid URL specified');
+	}
+
+	// Databse connection
+	$dbh = new \PDO('sqlite::memory:');
+
+	$dbh->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+	$sql = file_get_contents('db/schema.sql');
+
+	$dbh->exec($sql);
+
+	$robotstxt = file_get_contents($url['scheme'] . $url['host'] . $url['port'] . '/robots.txt');
+
+	Fetcher::fetch($url, $robotstxt, function(&$response) use($dbh) {
+		echo $response->http_code . ' ' . Fetcher::unparseUrl($response->url) . "\n";
+
 		foreach ( $response->links as $i => $link ) {
-			$link = preg_replace('/#.*$/', '', $link);
+			if ( isset($link) ) {
+				$linkString = Fetcher::unparseUrl($link);
 
-			$parsedUrl  = parse_url($url);
-			$parsedLink = parse_url($link);
+				$sth = $dbh->prepare('INSERT INTO urls ( url ) VALUES ( :url );');
 
-			if ( $parsedLink['scheme'] != 'http' && $parsedLink['scheme'] != 'https' ) {
-				unset($response->links[$i]);
+				$sth->bindParam('url', $linkString, \PDO::PARAM_STR);
 
-				continue;
-			}
-
-			if ( $parsedUrl['host'] != $parsedLink['host'] ) {
-				unset($response->links[$i]);
-
-				continue;
-			}
-
-			$sth = $dbh->prepare('INSERT INTO urls ( url ) VALUES ( :url );');
-
-			$sth->bindParam('url', $link, \PDO::PARAM_STR);
-
-			try {
-				$sth->execute();
-			}
-			catch ( \PDOException $e ) {
-				unset($response->links[$i]);
+				try {
+					$sth->execute();
+				} catch ( \PDOException $e ) {
+					// URL has already been processed
+					unset($response->links[$i]);
+				}
 			}
 		}
 	});
-} catch(Aranea\Exception $e) {
+} catch ( Exception $e ) {
 	echo $e->getMessage() . "\n";
 
 	exit(1);

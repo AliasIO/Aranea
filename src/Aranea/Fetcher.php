@@ -4,39 +4,81 @@ namespace Aranea;
 
 class Fetcher
 {
+	static $connectTimeout = 1;
+
+	static $ignoreNoFollow = false;
+
+	static $recursive = false;
+
 	static $followLocation = true;
 
 	static $maxRedirs = 3;
 
+	static $name = 'Aranea';
+
+	static $spanHosts = false;
+
 	static $timeout = 3;
 
-	public static function fetchRecursive($url = '', $callback) {
-		echo $url . "\n";
+	static $userAgent = 'Mozilla/5.0 (compatible; Aranea; +https://github.com/AliasIO/Aranea)';
 
-		self::fetch($url, function(&$response) use ($url, $callback) {
-			if ( is_callable($callback) ) {
-				call_user_func_array($callback, array(&$response));
+	public static function fetch(array $url = [], $robotstxt, $callback) {
+		$response = self::fetchUrl($url);
+
+		$response->links = self::extractLinks($response->url, $response->body);
+
+		foreach ( $response->links as $i => &$link ) {
+			$link = self::absoluteUrl($url, $link);
+
+			if ( !array_diff_assoc($link, $url) ) {
+				unset($response->links[$i]);
 			}
 
+			if ( $link['scheme'] != 'http://' && $link['scheme'] != 'https://' ) {
+				unset($response->links[$i]);
+			}
+
+			if ( !self::$spanHosts && $link['host'] != $url['host'] ) {
+				unset($response->links[$i]);
+			}
+
+			if ( !self::$ignoreNoFollow && !self::urlAllowed($link, $robotstxt) ) {
+				unset($response->links[$i]);
+			}
+		}
+
+		if ( is_callable($callback) ) {
+			call_user_func_array($callback, array(&$response));
+		}
+
+		if ( self::$recursive ) {
 			foreach ( $response->links as $link ) {
-				self::fetchRecursive($link, $callback);
+				try {
+					self::fetch($link, $robotstxt, $callback);
+				} catch ( Exception $e ) {
+					//
+				}
 			}
-		});
+		}
 	}
 
-	public static function fetch($url = '', $callback) {
+	private static function fetchUrl(array $url = []) {
 		$ch = curl_init();
 
 		curl_setopt_array($ch, array(
-			CURLOPT_URL            => $url,
-			CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; Aranea)',
+			CURLOPT_AUTOREFERER    => true,
+			CURLOPT_COOKIESESSION  => true,
+			CURLOPT_CONNECTTIMEOUT => self::$connectTimeout,
 			CURLOPT_FOLLOWLOCATION => self::$followLocation,
 			CURLOPT_HEADER         => true,
 			CURLOPT_MAXREDIRS      => self::$maxRedirs,
 			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_TIMEOUT        => self::$timeout,
+			CURLOPT_SSL_VERIFYHOST => false,
 			CURLOPT_SSL_VERIFYPEER => false,
-		));
+			CURLOPT_TIMEOUT        => self::$timeout,
+			CURLOPT_URL            => self::unparseUrl($url),
+			CURLOPT_USERAGENT      => self::$userAgent,
+			));
 
 		$result = curl_exec($ch);
 
@@ -44,15 +86,13 @@ class Fetcher
 			throw new Exception($error);
 		}
 
-		$response = new \StdClass();
-
-		$response->info = curl_getinfo($ch);
+		$response = (object) curl_getinfo($ch);
 
 		curl_close($ch);
 
-		$response->body = substr($result, $response->info['header_size']);
+		$response->body = substr($result, $response->header_size);
 
-		$headers = substr($result, 0, $response->info['header_size']);
+		$headers = substr($result, 0, $response->header_size);
 
 		$response->headers = [];
 
@@ -64,14 +104,12 @@ class Fetcher
 			}
 		}
 
-		$response->links = self::listLinks($response->info['url'], $response->body);
+		$response->url = self::parseUrl($response->url);
 
-		if ( is_callable($callback) ) {
-			call_user_func_array($callback, array(&$response));
-		}
+		return $response;
 	}
 
-	public static function listLinks($url, $html = '') {
+	private static function extractLinks($url, $html = '') {
 		$links = [];
 
 		$dom = new \DOMDocument;
@@ -80,8 +118,10 @@ class Fetcher
 
 		foreach ( $dom->getElementsByTagName('a') as $anchor ) {
 			if ( $link = $anchor->getAttribute('href') ) {
-				if ( !preg_match('/^[a-z]+:/i', $link) ) {
-					$links[] = self::rel2abs($url, $link);
+				if ( !preg_match('/^[a-z]+:[^\/]/i', $link) ) { // E.g. javascript:, mailto:
+					if ( $anchor->getAttribute('rel') != 'nofollow' || self::$ignoreNoFollow ) {
+						$links[] = self::parseUrl($link);
+					}
 				}
 			}
 		}
@@ -89,10 +129,36 @@ class Fetcher
 		return $links;
 	}
 
-	public static function rel2abs($url = '', $href = '') {
-		$url  = self::parseUrl($url);
-		$href = self::parseUrl($href);
+	public static function parseUrl($url = '') {
+		if ( !preg_match('/^[a-z]+:\/\//', $url) ) {
+			$slash = substr($url, 0, 1) == '/' ? '/' : '';
 
+			$url = 'fake://fake/' . ltrim($url, '/');
+
+			$url = parse_url($url) ?: [];
+
+			$url['scheme'] = '';
+			$url['host']   = '';
+			$url['path']   = $slash . ltrim($url['path'], '/');
+		} else {
+			$url = parse_url($url) ?: [];
+		}
+
+		$url = array_merge(array('scheme' => '', 'host' => '', 'port' => '', 'path' => '', 'query' => '', 'fragment' => ''), $url);
+
+		$url['scheme']   = $url['scheme']   ? $url['scheme'] . '://' : '';
+		$url['port']     = $url['port']     ? ':' . $url['port']     : '';
+		$url['query']    = $url['query']    ? '?' . $url['query']    : '';
+		$url['fragment'] = $url['fragment'] ? '#' . $url['fragment'] : '';
+
+		return $url;
+	}
+
+	public static function unparseUrl(array $url = []) {
+		return $url['scheme'] . $url['host'] . $url['port'] . $url['path'] . $url['query'] . $url['fragment'];
+	}
+
+	public static function absoluteUrl(array $url = [], array $link = []) {
 		if ( !$url['scheme'] ) {
 			throw new Exception('URL has no scheme');
 		}
@@ -101,25 +167,27 @@ class Fetcher
 			throw new Exception('URL has no hostname');
 		}
 
-		$path = $href['path'];
+		$path = $link['path'];
 
-		if ( $href['host'] ) {
-			if ( $href['scheme'] ) {
-				return $href['scheme'] . '://' . $href['host'] . $href['port'] . $path . $href['query'] . $href['fragment'];
+		if ( $link['host'] ) {
+			// URL is already absolute
+			if ( $link['scheme'] ) {
+				return $link;
 			}
 
-			return $url['scheme'] . '://' . ltrim($href['host'], '//') . $href['port'] . $path . $href['query'] . $href['fragment'];
+			// Protocol agnostic URL
+			return self::parseUrl($url['scheme'] . ltrim($link['host'], '//') . $link['port'] . $link['path'] . $link['query'] . $link['fragment']);
 		}
 
-		if ( strpos($path, '/') !== 0 ) {
-			$path = preg_replace('/^(.*\/)[^\/]+$/', '\1', rtrim($url['path'], '/')) . '/' . $path;
+		// Remove the last path component
+		if ( substr($path, 0, 1) != '/' ) {
+			$path = rtrim(preg_replace('/^(.*\/)[^\/]+$/', '\1', $url['path']), '/') . '/' . $path;
 		}
 
-		$dirs = explode('/', $path);
-
+		// Resolve directory paths
 		$parents = [];
 
-		foreach( $dirs as $dir) {
+		foreach(explode('/', $path) as $dir) {
 			switch( $dir) {
 				case '':
 				case '.':
@@ -135,32 +203,32 @@ class Fetcher
 			}
 		}
 
-		$path = '/' . ltrim(implode('/', $parents) . '/', '/');
+		$path = '/' . ltrim(implode('/', $parents) . ( substr($path, -1) == '/' ? '/' : '' ), '/');
 
-		return $url['scheme'] . '://' . $url['host'] . $url['port'] . $path . $href['query'] . $href['fragment'];
+		return self::parseUrl($url['scheme'] . $url['host'] . $url['port'] . $path . $link['query'] . $link['fragment']);
 	}
 
-	private static function parseUrl($url) {
-		if ( !preg_match('/^[a-z]+:\/\//', $url) ) {
-			$slash = strpos($url, '/') == 0 ? '/' : '';
+	public static function urlAllowed(array $url = [], $robotstxt = '') {
+		$applies = false;
 
-			$url = 'fake://fake/' . ltrim($url, '/');
+		foreach ( explode("\n", $robotstxt) as $line ) {
+			if ( preg_match('/^\s*User-agent:(.*)/i', $line, $match) ) {
+				$agent = trim($match[1]);
 
-			$url = parse_url($url);
+				$applies = $agent == '*' || $agent == self::$name;
+			}
 
-			$url['scheme'] = '';
-			$url['host']   = '';
-			$url['path']   = $slash . ltrim($url['path'], '/');
-		} else {
-			$url = parse_url($url);
+			if ( $applies ) {
+				if ( preg_match('/^\s*Disallow:(.*)/i', $line, $match) ) {
+					$rule = trim($match[1]);
+
+					if ( preg_match('/^' . preg_quote($rule, '/') . '/', $url['path']) ) {
+						return false;
+					}
+				}
+			}
 		}
 
-		$url = array_merge(array('scheme' => '', 'host' => '', 'port' => '', 'path' => '', 'query' => '', 'fragment' => ''), $url);
-
-		$url['port']     = $url['port']     ? ':' . $url['port']     : '';
-		$url['query']    = $url['query']    ? '?' . $url['query']    : '';
-		$url['fragment'] = $url['fragment'] ? '#' . $url['fragment'] : '';
-
-		return $url;
+    return true;
 	}
 }
