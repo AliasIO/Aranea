@@ -6,25 +6,82 @@ require 'vendor/autoload.php';
 
 $help = <<<EOF
 Usage: php index.php -u <url>
+
+Arguments:
+  -h
+  --help
+      Print this help message.
+
+  -H
+  --span-hosts
+      Enable spanning across hosts when doing recursive retrieving.
+
+  -l <depth>
+  --level <depth>
+      Enable spanning across hosts when doing recursive retrieving.
+
+  -r
+  --recursive
+      Turn on recursive retrieving. The default maximum depth is 5.
+
+  -T <seconds>
+  --timeout <seconds>
+      Set the network timeout to <seconds> seconds.
+
+  --connect-timeout <seconds>
+      Set the network timeout to <seconds> seconds.
+
+  -u <url>
+  --url <url>
+      Retrieve a URL.
+
+  -w <seconds>
+  --wait <seconds>
+      Wait the specified number of seconds between the retrievals.
 EOF;
 
 try {
-	$opts = getopt('u:hHri', array(
-		'url:',
+	$opts = getopt('hHl:rT:u:w:', array(
+		'connect-timeout:',
 		'help',
-		'span-hosts',
+		'level:',
+		'ignore-nofollow',
+		'max-redirect:',
 		'recursive',
-		'ignore-nofollow'
+		'span-hosts',
+		'timeout:',
+		'url:',
+		'wait:',
 		));
 
 	$url = isset($opts['url']) ? $opts['url'] : ( isset($opts['u']) ? $opts['u'] : '' );
 
-	Fetcher::$spanHosts      = isset($opts['span-hosts'])      || isset($opts['H']);
-	Fetcher::$recursive      = isset($opts['recursive'])       || isset($opts['r']);
-	Fetcher::$ignoreNoFollow = isset($opts['ignore-nofollow']) || isset($opts['i']);
-
 	if ( isset($opts['help']) || isset($opts['h']) || !$url ) {
 		throw new Exception($help);
+	}
+
+	Fetcher::$ignoreNoFollow = isset($opts['ignore-nofollow']);
+	Fetcher::$spanHosts      = isset($opts['span-hosts']) || isset($opts['H']);
+	Fetcher::$recursive      = isset($opts['recursive']) || isset($opts['r']);
+
+	if ( isset($opts['connect-timeout']) ) {
+		Fetcher::$connectTimeout = $opts['connect-timeout'];
+	}
+
+	if ( isset($opts['max-redirect']) ) {
+		Fetcher::$maxRedirect = $opts['max-redirect'];
+	}
+
+	if ( isset($opts['level']) || isset($opts['l']) ) {
+		Fetcher::$maxDepth = isset($opts['level']) ? $opts['level'] : $opts['l'];
+	}
+
+	if ( isset($opts['timeout']) || isset($opts['T']) ) {
+		Fetcher::$timeout = isset($opts['timeout']) ? $opts['timeout'] : $opts['T'];
+	}
+
+	if ( isset($opts['wait']) || isset($opts['w']) ) {
+		Fetcher::$wait = isset($opts['wait']) ? $opts['wait'] : $opts['w'];
 	}
 
 	$url = Fetcher::parseUrl($url);
@@ -33,36 +90,10 @@ try {
 		throw new Exception('Invalid URL specified');
 	}
 
-	// Databse connection
-	$dbh = new \PDO('sqlite::memory:');
-
-	$dbh->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-
-	$sql = file_get_contents('db/schema.sql');
-
-	$dbh->exec($sql);
-
 	$robotstxt = file_get_contents($url['scheme'] . $url['host'] . $url['port'] . '/robots.txt');
 
-	Fetcher::fetch($url, $robotstxt, function(&$response) use($dbh) {
+	Fetcher::fetch($url, $urls = [], $depth = 0, $robotstxt, function(&$response) {
 		echo $response->http_code . ' ' . Fetcher::unparseUrl($response->url) . "\n";
-
-		foreach ( $response->links as $i => $link ) {
-			if ( isset($link) ) {
-				$linkString = Fetcher::unparseUrl($link);
-
-				$sth = $dbh->prepare('INSERT INTO urls ( url ) VALUES ( :url );');
-
-				$sth->bindParam('url', $linkString, \PDO::PARAM_STR);
-
-				try {
-					$sth->execute();
-				} catch ( \PDOException $e ) {
-					// URL has already been processed
-					unset($response->links[$i]);
-				}
-			}
-		}
 	});
 } catch ( Exception $e ) {
 	echo $e->getMessage() . "\n";

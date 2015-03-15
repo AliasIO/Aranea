@@ -12,7 +12,9 @@ class Fetcher
 
 	static $followLocation = true;
 
-	static $maxRedirs = 3;
+	static $maxDepth = 5;
+
+	static $maxRedirect = 3;
 
 	static $name = 'Aranea';
 
@@ -22,17 +24,19 @@ class Fetcher
 
 	static $userAgent = 'Mozilla/5.0 (compatible; Aranea; +https://github.com/AliasIO/Aranea)';
 
-	public static function fetch(array $url = [], $robotstxt, $callback) {
+	static $wait = 0;
+
+	public static function fetch(array $url = [], array &$urls = [], &$depth = 0, $robotstxt, $callback) {
+		if ( empty($urls) ) {
+			$urls[] = $url;
+		}
+
 		$response = self::fetchUrl($url);
 
 		$response->links = self::extractLinks($response->url, $response->body);
 
 		foreach ( $response->links as $i => &$link ) {
 			$link = self::absoluteUrl($url, $link);
-
-			if ( !array_diff_assoc($link, $url) ) {
-				unset($response->links[$i]);
-			}
 
 			if ( $link['scheme'] != 'http://' && $link['scheme'] != 'https://' ) {
 				unset($response->links[$i]);
@@ -45,6 +49,10 @@ class Fetcher
 			if ( !self::$ignoreNoFollow && !self::urlAllowed($link, $robotstxt) ) {
 				unset($response->links[$i]);
 			}
+
+			if ( in_array(self::unparseUrl($link), $urls) ) {
+				unset($response->links[$i]);
+			}
 		}
 
 		if ( is_callable($callback) ) {
@@ -53,11 +61,23 @@ class Fetcher
 
 		if ( self::$recursive ) {
 			foreach ( $response->links as $link ) {
+				if ( self::$wait ) {
+					usleep(self::$wait * 1000000);
+				}
+
+				$urls[] = self::unparseUrl($link);
+
+				$depth ++;
+
 				try {
-					self::fetch($link, $robotstxt, $callback);
+					if ( $depth <= self::$maxDepth ) {
+						self::fetch($link, $urls, $depth, $robotstxt, $callback);
+					}
 				} catch ( Exception $e ) {
 					//
 				}
+
+				$depth --;
 			}
 		}
 	}
@@ -71,7 +91,7 @@ class Fetcher
 			CURLOPT_CONNECTTIMEOUT => self::$connectTimeout,
 			CURLOPT_FOLLOWLOCATION => self::$followLocation,
 			CURLOPT_HEADER         => true,
-			CURLOPT_MAXREDIRS      => self::$maxRedirs,
+			CURLOPT_MAXREDIRS      => self::$maxRedirect,
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_SSL_VERIFYHOST => false,
 			CURLOPT_SSL_VERIFYPEER => false,
@@ -126,6 +146,8 @@ class Fetcher
 			}
 		}
 
+		$links = array_unique($links, SORT_REGULAR);
+
 		return $links;
 	}
 
@@ -145,6 +167,10 @@ class Fetcher
 		}
 
 		$url = array_merge(array('scheme' => '', 'host' => '', 'port' => '', 'path' => '', 'query' => '', 'fragment' => ''), $url);
+
+		if ( !$url['path'] ) {
+			$url['path'] = '/';
+		}
 
 		$url['scheme']   = $url['scheme']   ? $url['scheme'] . '://' : '';
 		$url['port']     = $url['port']     ? ':' . $url['port']     : '';
