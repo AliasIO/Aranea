@@ -4,59 +4,141 @@ namespace Aranea;
 
 class Fetcher
 {
-	static $connectTimeout = 1;
+	const EXCEPTION_URL_SCHEME = 1;
 
-	static $ignoreNoFollow = false;
+	const EXCEPTION_URL_HOSTNAME = 2;
 
-	static $recursive = false;
+	const EXCEPTION_OUTPUT_DIR_MISSING = 3;
 
-	static $followLocation = true;
+	const EXCEPTION_OUTPUT_DIR_PERMISSION = 4;
 
-	static $maxDepth = 5;
+	const EXCEPTION_OUTPUT_DIR_NONEMPTY = 5;
 
-	static $maxRedirect = 3;
+	const EXCEPTION_CURL = 6;
 
-	static $name = 'Aranea';
+	public static $connectTimeout = 1;
 
-	static $spanHosts = false;
+	public static $ignoreNoFollow = false;
 
-	static $timeout = 3;
+	public static $recursive = false;
 
-	static $userAgent = 'Mozilla/5.0 (compatible; Aranea; +https://github.com/AliasIO/Aranea)';
+	public static $followLocation = true;
 
-	static $wait = 0;
+	public static $maxDepth = 5;
 
-	public static function fetch(array $url = [], array &$urls = [], &$depth = 0, $robotstxt, $callback) {
-		if ( empty($urls) ) {
-			$urls[] = $url;
+	public static $maxRedirect = 3;
+
+	public static $name = 'Aranea';
+
+	public static $quiet = false;
+
+	public static $outputDirectory = '';
+
+	public static $spanHosts = false;
+
+	public static $timeout = 3;
+
+	public static $userAgent = 'Mozilla/5.0 (compatible; Aranea; +https://github.com/AliasIO/Aranea)';
+
+	public static $verbose = false;
+
+	public static $wait = 0;
+
+	private static $urls = [];
+
+	private static $depth = 0;
+
+	private static $robotstxt = [];
+
+	public static function fetch($url = '') {
+		$url = self::parseUrl($url);
+
+		if ( !$url['scheme'] ) {
+			throw new Exception('Invalid URL specified (missing scheme)', self::EXCEPTION_URL_SCHEME);
 		}
 
+		if ( !$url['host'] ) {
+			throw new Exception('Invalid URL specified (missing hostname)', self::EXCEPTION_URL_HOSTNAME);
+		}
+
+		if ( self::$outputDirectory ) {
+			if ( !is_dir(self::$outputDirectory) ) {
+				throw new Exception('Output directory does not exist', self::EXCEPTION_OUTPUT_DIR_MISSING);
+			}
+
+			if ( !is_writable(self::$outputDirectory) ) {
+				throw new Exception('Output directory is not writeable', self::EXCEPTION_OUTPUT_DIR_PERMISSION);
+			}
+
+			$handle = opendir(self::$outputDirectory);
+
+			while ( $file = readdir($handle) ) {
+				if ( $file != '.' && $file != '..' ) {
+					throw new Exception('Output directory is not empty', self::EXCEPTION_OUTPUT_DIR_NONEMPTY);
+
+					break;
+				}
+			}
+
+			closedir($handle);
+		}
+
+		self::$depth           = 0;
+		self::$urls            = [ self::unparseUrl($url) ];
+		self::$outputDirectory = rtrim(self::$outputDirectory, '/');
+
+		self::fetchRecursive($url);
+	}
+
+	private static function fetchRecursive(array $url = []) {
 		$response = self::fetchUrl($url);
 
 		$response->links = self::extractLinks($response->url, $response->body);
 
+		if ( self::$outputDirectory ) {
+			file_put_contents(self::$outputDirectory . '/' . sha1(self::unparseUrl($url)), json_encode($response));
+		} else {
+			self::$urls[] = self::unparseUrl($url);
+		}
+
 		foreach ( $response->links as $i => &$link ) {
 			$link = self::absoluteUrl($url, $link);
 
-			if ( $link['scheme'] != 'http://' && $link['scheme'] != 'https://' ) {
+			if ( $link['scheme'] != 'http' && $link['scheme'] != 'https' ) {
 				unset($response->links[$i]);
+
+				continue;
 			}
 
 			if ( !self::$spanHosts && $link['host'] != $url['host'] ) {
 				unset($response->links[$i]);
+
+				continue;
 			}
 
-			if ( !self::$ignoreNoFollow && !self::urlAllowed($link, $robotstxt) ) {
+			if ( !self::$ignoreNoFollow && !self::urlAllowed($link) ) {
 				unset($response->links[$i]);
+
+				continue;
 			}
 
-			if ( in_array(self::unparseUrl($link), $urls) ) {
-				unset($response->links[$i]);
+			if ( self::$outputDirectory ) {
+				if ( file_exists(self::$outputDirectory . '/' . sha1(self::unparseUrl($link))) ) {
+					unset($response->links[$i]);
+
+					continue;
+				}
+			} else {
+				if ( in_array(self::unparseUrl($link), self::$urls) ) {
+					unset($response->links[$i]);
+
+					continue;
+				}
 			}
 		}
 
-		if ( is_callable($callback) ) {
-			call_user_func_array($callback, array(&$response));
+		if ( !self::$quiet ) {
+			echo $response->http_code . ' ' . self::unparseUrl($response->url) . "\n";
 		}
 
 		if ( self::$recursive ) {
@@ -65,19 +147,19 @@ class Fetcher
 					usleep(self::$wait * 1000000);
 				}
 
-				$urls[] = self::unparseUrl($link);
-
-				$depth ++;
+				self::$depth ++;
 
 				try {
-					if ( $depth <= self::$maxDepth ) {
-						self::fetch($link, $urls, $depth, $robotstxt, $callback);
+					if ( self::$depth <= self::$maxDepth ) {
+						self::fetchRecursive($link);
 					}
 				} catch ( Exception $e ) {
-					//
+					if ( self::$verbose ) {
+						echo '[verbose] ' . $e->getMessage() . "\n";
+					}
 				}
 
-				$depth --;
+				self::$depth --;
 			}
 		}
 	}
@@ -103,7 +185,7 @@ class Fetcher
 		$result = curl_exec($ch);
 
 		if ( $error = curl_error($ch) ) {
-			throw new Exception($error);
+			throw new Exception($error, self::EXCEPTION_CURL);
 		}
 
 		$response = (object) curl_getinfo($ch);
@@ -172,29 +254,14 @@ class Fetcher
 			$url['path'] = '/';
 		}
 
-		$url['scheme']   = $url['scheme']   ? $url['scheme'] . '://' : '';
-		$url['port']     = $url['port']     ? ':' . $url['port']     : '';
-		$url['query']    = $url['query']    ? '?' . $url['query']    : '';
-		$url['fragment'] = $url['fragment'] ? '#' . $url['fragment'] : '';
-
 		return $url;
 	}
 
 	public static function unparseUrl(array $url = []) {
-		return $url['scheme'] . $url['host'] . $url['port'] . $url['path'] . $url['query'] . $url['fragment'];
+		return $url['scheme'] . '://' . $url['host'] . ( $url['port'] ? ':' . $url['port'] : '' ) . '/' . ltrim($url['path'], '/') . ( $url['query'] ? '?' . $url['query'] : '' ) . ( $url['fragment'] ? '#' . $url['fragment'] : '' );
 	}
 
 	public static function absoluteUrl(array $url = [], array $link = []) {
-		if ( !$url['scheme'] ) {
-			throw new Exception('URL has no scheme');
-		}
-
-		if ( !$url['host'] ) {
-			throw new Exception('URL has no hostname');
-		}
-
-		$path = $link['path'];
-
 		if ( $link['host'] ) {
 			// URL is already absolute
 			if ( $link['scheme'] ) {
@@ -202,18 +269,24 @@ class Fetcher
 			}
 
 			// Protocol agnostic URL
-			return self::parseUrl($url['scheme'] . ltrim($link['host'], '//') . $link['port'] . $link['path'] . $link['query'] . $link['fragment']);
+			$link['scheme'] = $url['scheme'];
+			$link['host']   = ltrim($url['host'], '/');
+
+			return $link;
 		}
 
+		$link['scheme'] = $url['scheme'];
+		$link['host']   = $url['host'];
+
 		// Remove the last path component
-		if ( substr($path, 0, 1) != '/' ) {
-			$path = rtrim(preg_replace('/^(.*\/)[^\/]+$/', '\1', $url['path']), '/') . '/' . $path;
+		if ( substr($link['path'], 0, 1) != '/' ) {
+			$link['path'] = rtrim(preg_replace('/^(.*\/)[^\/]+$/', '\1', $url['path']), '/') . '/' . $link['path'];
 		}
 
 		// Resolve directory paths
 		$parents = [];
 
-		foreach(explode('/', $path) as $dir) {
+		foreach(explode('/', $link['path']) as $dir) {
 			switch( $dir) {
 				case '':
 				case '.':
@@ -229,15 +302,47 @@ class Fetcher
 			}
 		}
 
-		$path = '/' . ltrim(implode('/', $parents) . ( substr($path, -1) == '/' ? '/' : '' ), '/');
+		$link['path'] = '/' . ltrim(implode('/', $parents) . ( substr($link['path'], -1) == '/' ? '/' : '' ), '/');
 
-		return self::parseUrl($url['scheme'] . $url['host'] . $url['port'] . $path . $link['query'] . $link['fragment']);
+		return $link;
 	}
 
-	public static function urlAllowed(array $url = [], $robotstxt = '') {
+	public static function urlAllowed(array $url = []) {
+		if ( self::$ignoreNoFollow ) {
+			return true;
+		}
+
 		$applies = false;
 
-		foreach ( explode("\n", $robotstxt) as $line ) {
+		if ( !isset(self::$robotstxt[$url['host']]) ) {
+			self::$robotstxt[$url['host']] = '';
+
+			$robotstxtUrl = $url;
+
+			$robotstxtUrl['path']     = 'robots.txt';
+			$robotstxtUrl['query']    = '';
+			$robotstxtUrl['fragment'] = '';
+
+			if ( self::$verbose ) {
+				echo '[verbose] Fetching ' . self::unparseUrl($robotstxtUrl) . "\n";
+			}
+
+			try {
+				$response = self::fetchUrl($robotstxtUrl);
+
+				self::$robotstxt[$url['host']] = $response->http_code == 200 ? $response->body : '';
+
+				if ( self::$verbose ) {
+					echo '[verbose] ' . $response->http_code . ' ' . self::unparseUrl($response->url) . "\n";
+				}
+			} catch ( Exception $e ) {
+				if ( self::$verbose ) {
+					echo '[verbose] ' . $e->getMessage() . "\n";
+				}
+			}
+		}
+
+		foreach ( explode("\n", self::$robotstxt[$url['host']]) as $line ) {
 			if ( preg_match('/^\s*User-agent:(.*)/i', $line, $match) ) {
 				$agent = trim($match[1]);
 

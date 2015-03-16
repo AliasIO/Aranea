@@ -12,13 +12,24 @@ Arguments:
   --help
       Print this help message.
 
+  --ignore-nofollow
+      Ignore robots.txt and rel="nofollow" on links
+
   -H
   --span-hosts
       Enable spanning across hosts when doing recursive retrieving.
 
   -l <depth>
   --level <depth>
-      Enable spanning across hosts when doing recursive retrieving.
+      Specify maximum recursion depth level.
+
+  -o <directory>
+  --output-directory <directory>
+      Log retrieved data to files in a directory.
+
+  -q
+  --quiet
+      Turn off regular output.
 
   -r
   --recursive
@@ -29,11 +40,15 @@ Arguments:
       Set the network timeout to <seconds> seconds.
 
   --connect-timeout <seconds>
-      Set the network timeout to <seconds> seconds.
+      Set the connect timeout to <seconds> seconds.
 
   -u <url>
   --url <url>
       Retrieve a URL.
+
+  -v
+  --verbose
+      Turn on verbose output.
 
   -w <seconds>
   --wait <seconds>
@@ -41,16 +56,19 @@ Arguments:
 EOF;
 
 try {
-	$opts = getopt('hHl:rT:u:w:', array(
+	$opts = getopt('hHl:o:qrT:u:vw:', array(
 		'connect-timeout:',
 		'help',
 		'level:',
 		'ignore-nofollow',
+		'output-directory:',
 		'max-redirect:',
 		'recursive',
+		'quiet',
 		'span-hosts',
 		'timeout:',
 		'url:',
+		'verbose',
 		'wait:',
 		));
 
@@ -62,7 +80,9 @@ try {
 
 	Fetcher::$ignoreNoFollow = isset($opts['ignore-nofollow']);
 	Fetcher::$spanHosts      = isset($opts['span-hosts']) || isset($opts['H']);
-	Fetcher::$recursive      = isset($opts['recursive']) || isset($opts['r']);
+	Fetcher::$quiet          = isset($opts['quiet'])      || isset($opts['q']);
+	Fetcher::$recursive      = isset($opts['recursive'])  || isset($opts['r']);
+	Fetcher::$verbose        = isset($opts['verbose'])    || isset($opts['v']);
 
 	if ( isset($opts['connect-timeout']) ) {
 		Fetcher::$connectTimeout = $opts['connect-timeout'];
@@ -76,6 +96,10 @@ try {
 		Fetcher::$maxDepth = isset($opts['level']) ? $opts['level'] : $opts['l'];
 	}
 
+	if ( isset($opts['output-directory']) || isset($opts['o']) ) {
+		Fetcher::$outputDirectory = isset($opts['output-directory']) ? $opts['output-directory'] : $opts['o'];
+	}
+
 	if ( isset($opts['timeout']) || isset($opts['T']) ) {
 		Fetcher::$timeout = isset($opts['timeout']) ? $opts['timeout'] : $opts['T'];
 	}
@@ -84,19 +108,11 @@ try {
 		Fetcher::$wait = isset($opts['wait']) ? $opts['wait'] : $opts['w'];
 	}
 
-	$url = Fetcher::parseUrl($url);
-
-	if ( empty($url['scheme']) ) {
-		throw new Exception('Invalid URL specified');
-	}
-
-	$robotstxt = file_get_contents($url['scheme'] . $url['host'] . $url['port'] . '/robots.txt');
-
-	Fetcher::fetch($url, $urls = [], $depth = 0, $robotstxt, function(&$response) {
-		echo $response->http_code . ' ' . Fetcher::unparseUrl($response->url) . "\n";
-	});
+	Fetcher::fetch($url);
 } catch ( Exception $e ) {
-	echo $e->getMessage() . "\n";
+	if ( !Fetcher::quiet ) {
+		echo $e->getMessage() . "\n";
+	}
 
 	exit(1);
 }
