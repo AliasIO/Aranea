@@ -10,13 +10,24 @@ Arguments:
   --help
       Print this help message.
 
+  --ignore-nofollow
+      Ignore robots.txt and rel="nofollow" on links
+
   -H
   --span-hosts
       Enable spanning across hosts when doing recursive retrieving.
 
   -l <depth>
   --level <depth>
-      Enable spanning across hosts when doing recursive retrieving.
+      Specify maximum recursion depth level.
+
+  -o <directory>
+  --output-directory <directory>
+      Log retrieved data to files in a directory.
+
+  -q
+  --quiet
+      Turn off regular output.
 
   -r
   --recursive
@@ -27,11 +38,15 @@ Arguments:
       Set the network timeout to <seconds> seconds.
 
   --connect-timeout <seconds>
-      Set the network timeout to <seconds> seconds.
+      Set the connect timeout to <seconds> seconds.
 
   -u <url>
   --url <url>
       Retrieve a URL.
+
+  -v
+  --verbose
+      Turn on verbose output.
 
   -w <seconds>
   --wait <seconds>

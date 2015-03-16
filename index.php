@@ -110,7 +110,7 @@ try {
 
 	Fetcher::fetch($url);
 } catch ( Exception $e ) {
-	if ( !Fetcher::quiet ) {
+	if ( !Fetcher::$quiet ) {
 		echo $e->getMessage() . "\n";
 	}
 
