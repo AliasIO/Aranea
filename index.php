@@ -55,63 +55,65 @@ Arguments:
       Wait the specified number of seconds between the retrievals.
 EOF;
 
+$opts = getopt('hHl:o:qrT:u:vw:', array(
+	'connect-timeout:',
+	'help',
+	'level:',
+	'ignore-nofollow',
+	'output-directory:',
+	'max-redirect:',
+	'recursive',
+	'quiet',
+	'span-hosts',
+	'timeout:',
+	'url:',
+	'verbose',
+	'wait:',
+	));
+
+$url = isset($opts['url']) ? $opts['url'] : ( isset($opts['u']) ? $opts['u'] : '' );
+
+if ( isset($opts['help']) || isset($opts['h']) || !$url ) {
+	fwrite(STDERR, $help);
+
+	exit(1);
+}
+
+Fetcher::$ignoreNoFollow = isset($opts['ignore-nofollow']);
+Fetcher::$spanHosts      = isset($opts['span-hosts']) || isset($opts['H']);
+Fetcher::$quiet          = isset($opts['quiet'])      || isset($opts['q']);
+Fetcher::$recursive      = isset($opts['recursive'])  || isset($opts['r']);
+Fetcher::$verbose        = isset($opts['verbose'])    || isset($opts['v']);
+
+if ( isset($opts['connect-timeout']) ) {
+	Fetcher::$connectTimeout = $opts['connect-timeout'];
+}
+
+if ( isset($opts['max-redirect']) ) {
+	Fetcher::$maxRedirect = $opts['max-redirect'];
+}
+
+if ( isset($opts['level']) || isset($opts['l']) ) {
+	Fetcher::$maxDepth = isset($opts['level']) ? $opts['level'] : $opts['l'];
+}
+
+if ( isset($opts['output-directory']) || isset($opts['o']) ) {
+	Fetcher::$outputDirectory = isset($opts['output-directory']) ? $opts['output-directory'] : $opts['o'];
+}
+
+if ( isset($opts['timeout']) || isset($opts['T']) ) {
+	Fetcher::$timeout = isset($opts['timeout']) ? $opts['timeout'] : $opts['T'];
+}
+
+if ( isset($opts['wait']) || isset($opts['w']) ) {
+	Fetcher::$wait = isset($opts['wait']) ? $opts['wait'] : $opts['w'];
+}
+
 try {
-	$opts = getopt('hHl:o:qrT:u:vw:', array(
-		'connect-timeout:',
-		'help',
-		'level:',
-		'ignore-nofollow',
-		'output-directory:',
-		'max-redirect:',
-		'recursive',
-		'quiet',
-		'span-hosts',
-		'timeout:',
-		'url:',
-		'verbose',
-		'wait:',
-		));
-
-	$url = isset($opts['url']) ? $opts['url'] : ( isset($opts['u']) ? $opts['u'] : '' );
-
-	if ( isset($opts['help']) || isset($opts['h']) || !$url ) {
-		throw new Exception($help);
-	}
-
-	Fetcher::$ignoreNoFollow = isset($opts['ignore-nofollow']);
-	Fetcher::$spanHosts      = isset($opts['span-hosts']) || isset($opts['H']);
-	Fetcher::$quiet          = isset($opts['quiet'])      || isset($opts['q']);
-	Fetcher::$recursive      = isset($opts['recursive'])  || isset($opts['r']);
-	Fetcher::$verbose        = isset($opts['verbose'])    || isset($opts['v']);
-
-	if ( isset($opts['connect-timeout']) ) {
-		Fetcher::$connectTimeout = $opts['connect-timeout'];
-	}
-
-	if ( isset($opts['max-redirect']) ) {
-		Fetcher::$maxRedirect = $opts['max-redirect'];
-	}
-
-	if ( isset($opts['level']) || isset($opts['l']) ) {
-		Fetcher::$maxDepth = isset($opts['level']) ? $opts['level'] : $opts['l'];
-	}
-
-	if ( isset($opts['output-directory']) || isset($opts['o']) ) {
-		Fetcher::$outputDirectory = isset($opts['output-directory']) ? $opts['output-directory'] : $opts['o'];
-	}
-
-	if ( isset($opts['timeout']) || isset($opts['T']) ) {
-		Fetcher::$timeout = isset($opts['timeout']) ? $opts['timeout'] : $opts['T'];
-	}
-
-	if ( isset($opts['wait']) || isset($opts['w']) ) {
-		Fetcher::$wait = isset($opts['wait']) ? $opts['wait'] : $opts['w'];
-	}
-
 	Fetcher::fetch($url);
 } catch ( Exception $e ) {
 	if ( !Fetcher::$quiet ) {
-		echo $e->getMessage() . "\n";
+		fwrite(STDERR, '[error] ' . $e->getMessage() . "\n");
 	}
 
 	exit(1);

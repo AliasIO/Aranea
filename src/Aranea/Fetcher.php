@@ -154,8 +154,8 @@ class Fetcher
 						self::fetchRecursive($link);
 					}
 				} catch ( Exception $e ) {
-					if ( self::$verbose ) {
-						echo '[verbose] ' . $e->getMessage() . "\n";
+					if ( !self::$quiet ) {
+						fwrite(STDERR, '[exception] ' . $e->getMessage() . "\n");
 					}
 				}
 
@@ -336,8 +336,8 @@ class Fetcher
 					echo '[verbose] ' . $response->http_code . ' ' . self::unparseUrl($response->url) . "\n";
 				}
 			} catch ( Exception $e ) {
-				if ( self::$verbose ) {
-					echo '[verbose] ' . $e->getMessage() . "\n";
+				if ( !self::$quiet ) {
+					fwrite(STDERR, '[exception] ' . $e->getMessage() . "\n");
 				}
 			}
 		}

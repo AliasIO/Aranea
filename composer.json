@@ -1,4 +1,6 @@
 {
+	"name": "AliasIO/Aranea",
+	"description": "A general purpose web crawler",
 	"autoload": {
 		"psr-4": { "Aranea\\": "src/Aranea/" }
 	}
