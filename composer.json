@@ -1,6 +1,15 @@
 {
 	"name": "aliasio/aranea",
 	"description": "A general purpose web crawler",
+	"authors": [
+		{
+			"name": "Elbert Alias",
+			"email": "elbert@alias.io",
+			"homepage": "https://alias.io",
+		}
+	]
+	"license": "GPL-3.0",
+	"homepage": "https://alias.io",
 	"autoload": {
 		"psr-4": { "Aranea\\": "src/Aranea/" }
 	}
