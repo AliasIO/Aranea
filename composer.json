@@ -7,7 +7,7 @@
 			"email": "elbert@alias.io",
 			"homepage": "https://alias.io",
 		}
-	]
+	],
 	"license": "GPL-3.0",
 	"homepage": "https://alias.io",
 	"autoload": {
