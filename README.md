@@ -56,11 +56,17 @@ Arguments:
 Example output:
 
 ```
-$ php index.php -u http://mozilla.org -r
-200 https://www.mozilla.org/en-US/
-200 https://www.mozilla.org/en-US/mission/
-200 https://www.mozilla.org/en-US/about/
-200 https://www.mozilla.org/en-US/products/
-200 https://www.mozilla.org/en-US/contribute/
+$ php index.php -u https://mozilla.org -r
+200 63.245.215.20 https://www.mozilla.org/en-US/
+200 63.245.215.20 https://www.mozilla.org/en-US/mission/
+200 63.245.215.20 https://www.mozilla.org/en-US/about/
+200 63.245.215.20 https://www.mozilla.org/en-US/products/
+200 63.245.215.20 https://www.mozilla.org/en-US/contribute/
 ...
+```
+
+Using Docker
+
+```
+$ docker run --rm -it aliasio/aranea -u https://mozilla.org -r
 ```

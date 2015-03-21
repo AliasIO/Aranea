@@ -2,6 +2,8 @@
 
 namespace Aranea;
 
+chdir(dirname(__FILE__));
+
 require 'vendor/autoload.php';
 
 $help = <<<EOF
@@ -74,7 +76,7 @@ $opts = getopt('hHl:o:qrT:u:vw:', array(
 $url = isset($opts['url']) ? $opts['url'] : ( isset($opts['u']) ? $opts['u'] : '' );
 
 if ( isset($opts['help']) || isset($opts['h']) || !$url ) {
-	fwrite(STDERR, $help);
+	fwrite(STDERR, $help . "\n");
 
 	exit(1);
 }
