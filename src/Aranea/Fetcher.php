@@ -18,6 +18,8 @@ class Fetcher
 
 	public static $connectTimeout = 1;
 
+	public static $debug = false;
+
 	public static $ignoreNoFollow = false;
 
 	public static $recursive = false;
@@ -141,7 +143,7 @@ class Fetcher
 		}
 
 		if ( !self::$quiet ) {
-			echo $response->http_code . ' ' . $response->ip_address . ' ' . self::unparseUrl($response->url) . "\n";
+			echo $response->http_code . ' ' . $response->ip_address . ' ' . self::unparseUrl($response->url) . ( self::$verbose ? ' ' . json_encode($response) : '' ) . "\n";
 		}
 
 		if ( self::$recursive ) {
@@ -332,8 +334,8 @@ class Fetcher
 			$robotstxtUrl['query']    = '';
 			$robotstxtUrl['fragment'] = '';
 
-			if ( self::$verbose ) {
-				echo '[verbose] Fetching ' . self::unparseUrl($robotstxtUrl) . "\n";
+			if ( self::$debug ) {
+				echo '[debug] Fetching ' . self::unparseUrl($robotstxtUrl) . "\n";
 			}
 
 			try {
@@ -341,8 +343,8 @@ class Fetcher
 
 				self::$robotstxt[$url['host']] = $response->http_code == 200 ? $response->body : '';
 
-				if ( self::$verbose ) {
-					echo '[verbose] ' . $response->http_code . ' ' . self::unparseUrl($response->url) . "\n";
+				if ( self::$debug ) {
+					echo '[debug] ' . $response->http_code . ' ' . self::unparseUrl($response->url) . "\n";
 				}
 			} catch ( Exception $e ) {
 				if ( !self::$quiet ) {

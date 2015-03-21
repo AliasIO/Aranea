@@ -10,6 +10,10 @@ $help = <<<EOF
 Usage: php index.php -u [url] [options]...
 
 Arguments:
+  -d
+  --debug
+      Print debug messages.
+
   -h
   --help
       Print this help message.
@@ -57,8 +61,9 @@ Arguments:
       Wait the specified number of seconds between the retrievals.
 EOF;
 
-$opts = getopt('hHl:o:qrT:u:vw:', array(
+$opts = getopt('dhHl:o:qrT:u:vw:', array(
 	'connect-timeout:',
+	'debug',
 	'help',
 	'level:',
 	'ignore-nofollow',
@@ -82,6 +87,7 @@ if ( isset($opts['help']) || isset($opts['h']) || !$url ) {
 }
 
 Fetcher::$ignoreNoFollow = isset($opts['ignore-nofollow']);
+Fetcher::$debug          = isset($opts['debug'])      || isset($opts['d']);
 Fetcher::$spanHosts      = isset($opts['span-hosts']) || isset($opts['H']);
 Fetcher::$quiet          = isset($opts['quiet'])      || isset($opts['q']);
 Fetcher::$recursive      = isset($opts['recursive'])  || isset($opts['r']);

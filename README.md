@@ -3,9 +3,13 @@
 A general purpose web crawler.
 
 ```
-Usage: php index.php -u <url>
+Usage: php index.php -u [url] [options]...
 
 Arguments:
+  -d
+  --debug
+      Print debug messages.
+
   -h
   --help
       Print this help message.
@@ -68,5 +72,5 @@ $ php index.php -u https://mozilla.org -r
 Using Docker
 
 ```
-$ docker run --rm -it aliasio/aranea -u https://mozilla.org -r
+$ docker run --rm aliasio/aranea -u https://mozilla.org -r
 ```
