@@ -44,6 +44,8 @@ class Fetcher
 
 	public static $wait = 0;
 
+	private static $ipAddresses = [];
+
 	private static $urls = [];
 
 	private static $depth = 0;
@@ -85,6 +87,7 @@ class Fetcher
 
 		self::$depth           = 0;
 		self::$urls            = [ self::unparseUrl($url) ];
+		self::$ipAddresses     = [];
 		self::$outputDirectory = rtrim(self::$outputDirectory, '/');
 
 		self::fetchRecursive($url);
@@ -138,7 +141,7 @@ class Fetcher
 		}
 
 		if ( !self::$quiet ) {
-			echo $response->http_code . ' ' . self::unparseUrl($response->url) . "\n";
+			echo $response->http_code . ' ' . $response->ip_address . ' ' . self::unparseUrl($response->url) . "\n";
 		}
 
 		if ( self::$recursive ) {
@@ -207,6 +210,12 @@ class Fetcher
 		}
 
 		$response->url = self::parseUrl($response->url);
+
+		if ( !isset(self::$ipAddresses[$response->url['host']]) ) {
+			self::$ipAddresses[$response->url['host']] = gethostbyname($response->url['host']);
+		}
+
+		$response->ip_address = self::$ipAddresses[$response->url['host']];
 
 		return $response;
 	}

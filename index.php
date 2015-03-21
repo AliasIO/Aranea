@@ -5,7 +5,7 @@ namespace Aranea;
 require 'vendor/autoload.php';
 
 $help = <<<EOF
-Usage: php index.php -u <url>
+Usage: php index.php -u [url] [options]...
 
 Arguments:
   -h
