@@ -88,7 +88,7 @@ class Fetcher
 		}
 
 		self::$depth           = 0;
-		self::$urls            = [ self::unparseUrl($url) ];
+		self::$urls            = [];
 		self::$ipAddresses     = [];
 		self::$outputDirectory = rtrim(self::$outputDirectory, '/');
 
@@ -96,19 +96,31 @@ class Fetcher
 	}
 
 	private static function fetchRecursive(array $url = []) {
+		if ( self::$outputDirectory ) {
+			if ( file_exists(self::$outputDirectory . '/' . sha1(self::unparseUrl($url))) ) {
+				return;
+			}
+
+			file_put_contents(self::$outputDirectory . '/' . sha1(self::unparseUrl($url)), json_encode($response));
+		} else {
+			if ( in_array(self::unparseUrl($url), self::$urls) ) {
+				return;
+			}
+
+			self::$urls[] = self::unparseUrl($url);
+		}
+
 		$response = self::fetchUrl($url);
 
 		$response->links = self::extractLinks($response->url, $response->body);
 
-		if ( self::$outputDirectory ) {
-			file_put_contents(self::$outputDirectory . '/' . sha1(self::unparseUrl($url)), json_encode($response));
-		} else {
-			self::$urls[] = self::unparseUrl($url);
-		}
+		$response->links = array_map(function($link) use($url) {
+			return self::absoluteUrl($url, $link);
+		}, $response->links);
+
+		$response->links = array_unique($response->links, SORT_REGULAR);
 
 		foreach ( $response->links as $i => &$link ) {
-			$link = self::absoluteUrl($url, $link);
-
 			if ( $link['scheme'] != 'http' && $link['scheme'] != 'https' ) {
 				unset($response->links[$i]);
 
@@ -125,20 +137,6 @@ class Fetcher
 				unset($response->links[$i]);
 
 				continue;
-			}
-
-			if ( self::$outputDirectory ) {
-				if ( file_exists(self::$outputDirectory . '/' . sha1(self::unparseUrl($link))) ) {
-					unset($response->links[$i]);
-
-					continue;
-				}
-			} else {
-				if ( in_array(self::unparseUrl($link), self::$urls) ) {
-					unset($response->links[$i]);
-
-					continue;
-				}
 			}
 		}
 
@@ -204,7 +202,7 @@ class Fetcher
 		$response->headers = [];
 
 		foreach ( explode("\r\n", $headers) as $i => $header ) {
-			if ( strpos($header, ':') !== false ) {
+			if ( strstr($header, ': ') !== false ) {
 				list ($key, $value) = explode(': ', $header);
 
 				$response->headers[$key] = $value;
@@ -225,11 +223,11 @@ class Fetcher
 	private static function extractLinks($url, $html = '') {
 		$links = [];
 
-		$dom = new \DOMDocument;
+		$doc = new \DOMDocument;
 
-		@$dom->loadHTML($html);
+		@$doc->loadHTML($html);
 
-		foreach ( $dom->getElementsByTagName('a') as $anchor ) {
+		foreach ( $doc->getElementsByTagName('a') as $anchor ) {
 			if ( $link = $anchor->getAttribute('href') ) {
 				if ( !preg_match('/^[a-z]+:[^\/]/i', $link) ) { // E.g. javascript:, mailto:
 					if ( $anchor->getAttribute('rel') != 'nofollow' || self::$ignoreNoFollow ) {

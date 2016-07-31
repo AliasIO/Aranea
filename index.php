@@ -2,6 +2,8 @@
 
 namespace Aranea;
 
+error_reporting(-1);
+
 chdir(dirname(__FILE__));
 
 require 'vendor/autoload.php';
