@@ -123,7 +123,7 @@ try {
 	Fetcher::fetch($url);
 } catch ( Exception $e ) {
 	if ( !Fetcher::$quiet ) {
-		fwrite(STDERR, '[error] ' . $e->getMessage() . "\n");
+		fwrite(STDERR, $e->getMessage() . "\n");
 	}
 
 	exit(1);

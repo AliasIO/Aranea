@@ -1,4 +1,4 @@
-FROM phusion/baseimage:0.9.17
+FROM phusion/baseimage
 
 MAINTAINER Elbert Alias <elbert@alias.io>
 
@@ -15,8 +15,9 @@ WORKDIR $PROJECT_FOLDER
 # Apt
 RUN \
 	apt-get update && apt-get install -y \
-	php5-cli \
-	php5-curl \
+	php-cli \
+	php-dom \
+	php-curl \
 	&& apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Composer

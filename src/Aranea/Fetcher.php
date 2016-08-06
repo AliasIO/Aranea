@@ -158,7 +158,7 @@ class Fetcher
 					}
 				} catch ( Exception $e ) {
 					if ( !self::$quiet ) {
-						fwrite(STDERR, '[exception] ' . $e->getMessage() . "\n");
+						fwrite(STDERR, $e->getMessage() . "\n");
 					}
 				}
 
@@ -231,7 +231,7 @@ class Fetcher
 			if ( $link = $anchor->getAttribute('href') ) {
 				if ( !preg_match('/^[a-z]+:[^\/]/i', $link) ) { // E.g. javascript:, mailto:
 					if ( $anchor->getAttribute('rel') != 'nofollow' || self::$ignoreNoFollow ) {
-						$links[] = self::parseUrl($link);
+						$links[] = self::parseUrl($link, $url['scheme']);
 					}
 				}
 			}
@@ -242,7 +242,12 @@ class Fetcher
 		return $links;
 	}
 
-	public static function parseUrl($url = '') {
+	public static function parseUrl($url = '', $parentScheme = null) {
+		// Protocol relative URL
+		if ( preg_match('/^\/\//', $url) ) {
+			$url = $parentScheme . ':' . $url;
+		}
+
 		if ( !preg_match('/^[a-z]+:\/\//', $url) ) {
 			$slash = substr($url, 0, 1) == '/' ? '/' : '';
 
@@ -346,7 +351,7 @@ class Fetcher
 				}
 			} catch ( Exception $e ) {
 				if ( !self::$quiet ) {
-					fwrite(STDERR, '[exception] ' . $e->getMessage() . "\n");
+					fwrite(STDERR, $e->getMessage() . "\n");
 				}
 			}
 		}
