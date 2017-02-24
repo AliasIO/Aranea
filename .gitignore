@@ -2,3 +2,5 @@ composer.phar
 vendor/*
 
 !.gitkeep
+
+tags

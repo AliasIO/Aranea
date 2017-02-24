@@ -31,6 +31,12 @@ Arguments:
   --level <depth>
       Specify maximum recursion depth level.
 
+	--max-redirects <number>
+      Follow no more than <number> redirects per page.
+
+	--max-urls <number>
+      Terminate after having found <number> URLs.
+
   -o <directory>
   --output-directory <directory>
       Log retrieved data to files in a directory.
@@ -71,6 +77,7 @@ $opts = getopt('dhHl:o:qrT:u:vw:', array(
 	'ignore-nofollow',
 	'output-directory:',
 	'max-redirect:',
+	'max-urls:',
 	'recursive',
 	'quiet',
 	'span-hosts',
@@ -101,6 +108,10 @@ if ( isset($opts['connect-timeout']) ) {
 
 if ( isset($opts['max-redirect']) ) {
 	Fetcher::$maxRedirect = $opts['max-redirect'];
+}
+
+if ( isset($opts['max-urls']) ) {
+	Fetcher::$maxUrls = $opts['max-urls'];
 }
 
 if ( isset($opts['level']) || isset($opts['l']) ) {

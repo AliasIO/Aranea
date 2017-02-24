@@ -25,6 +25,12 @@ Arguments:
   --level <depth>
       Specify maximum recursion depth level.
 
+	--max-redirects <number>
+      Follow no more than <number> redirects per page.
+
+	--max-urls <number>
+      Terminate after having found <number> URLs.
+
   -o <directory>
   --output-directory <directory>
       Log retrieved data to files in a directory.

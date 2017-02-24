@@ -28,6 +28,8 @@ class Fetcher
 
 	public static $maxDepth = 5;
 
+	public static $maxUrls = 1000;
+
 	public static $maxRedirect = 3;
 
 	public static $name = 'Aranea';
@@ -153,7 +155,7 @@ class Fetcher
 				self::$depth ++;
 
 				try {
-					if ( self::$depth <= self::$maxDepth ) {
+					if ( self::$depth <= self::$maxDepth && count(self::$urls) < self::$maxUrls ) {
 						self::fetchRecursive($link);
 					}
 				} catch ( Exception $e ) {
