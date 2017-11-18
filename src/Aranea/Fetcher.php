@@ -274,7 +274,7 @@ class Fetcher
 	}
 
 	public static function unparseUrl(array $url = []) {
-		return $url['scheme'] . '://' . $url['host'] . ( $url['port'] ? ':' . $url['port'] : '' ) . '/' . ltrim($url['path'], '/') . ( $url['query'] ? '?' . $url['query'] : '' ) . ( $url['fragment'] ? '#' . $url['fragment'] : '' );
+		return $url['scheme'] . '://' . $url['host'] . ( $url['port'] ? ':' . $url['port'] : '' ) . '/' . ltrim($url['path'], '/') . ( $url['query'] ? '?' . $url['query'] : '' );
 	}
 
 	public static function absoluteUrl(array $url = [], array $link = []) {
